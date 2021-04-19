@@ -20,7 +20,7 @@ function [res]=df(x)
     res = -0.5 * exp(-0.5*x) - 0.4 * x
 endfunction
 
-function [x0]=simple_iter(f, s, eps, x0, max_iter, verbose, check_convergence_cond, error_func, nprevs, verbose_func)
+function [x0]=simple_iter(f, s, eps, x0, max_iter, verbose, check_convergence_cond, nprevs, verbose_func)
     // Находит корень функции f методом простых итераций.
     //
     // Параметры
@@ -41,13 +41,8 @@ function [x0]=simple_iter(f, s, eps, x0, max_iter, verbose, check_convergence_co
     // check_convergence_cond: булево, поумолчанию = %F,
     //    Проверять ли достаточные условия сходимости.
     //    ВНИМАНИЕ: при проверке условий сходимости будет вычислена первая производная функции.
-    // error_func: функция, поумолчанию = `error_func(x_prevs) = abs(x_prevs(1) - x_prevs(2))`
-    //    Функция, считающая оценку погрешности между текущим найденным решением и истиным корнем.
-    //    Будет использоваться в условии остановки как: `if error_func(x_prevs) < eps then break`
     // nprevs: целое число, поумолчанию 1
-    //    Кол-во предыдущих шагов, которые нужно передать в функцию `s(x)`. В функцию `error_func` 
-    //    передается `nprevs + 1` шагов. Например, при `nprevs=2` в s(x) будут передаваться: `x^k, x^(k-1)`,
-    //    а в `error_func`: `x^(k+1), x^k, x^(k-1)`.
+    //    Кол-во предыдущих шагов, которые нужно передать в функцию `s(x)`.
     // verbose_func: функция, поумолчанию = `verbose_func(i, x, err) = printf(..., i, x, err)`
     //    Функция, принимающая номер текущего шага, текущее решение и текущую ошибку, и выводящая информацию
     //    об этом шаге на экран.
@@ -66,8 +61,8 @@ function [x0]=simple_iter(f, s, eps, x0, max_iter, verbose, check_convergence_co
     
     if ~exists("s", "local") then
         // Определим функцию s(x) поумолчанию: в качестве ф-ии p(x) возьмём константу 1
-        function [_res]=s(x)
-            xk = x(1)
+        function [_res]=s(varargin)
+            xk = varargin(1)
             _res = xk + f(xk) 
         endfunction
     end
@@ -77,11 +72,16 @@ function [x0]=simple_iter(f, s, eps, x0, max_iter, verbose, check_convergence_co
     if ~exists("verbose", "local") then verbose = %F end
     if ~exists("check_convergence_cond", "local") then check_convergence_cond = %F end
     if ~exists("nprevs", "local") then nprevs = 1 end
-    if ~exists("error_func", "local") then 
-        function [_res]=error_func(x)
-            [x1, x0] = x(1:2)
-            _res = abs(x0 - x1) 
-        endfunction 
+    if ~exists("error_func", "local") 
+        then
+            err_prevs = 3
+            function [_res]=error_func(xk_2, xk_1, xk_0)
+                qn = (xk_2 - xk_1) / (xk_1 - xk_0)
+                if isnan(qn) then qn = 0 end
+                _res = abs((xk_2 - xk_1) / (1 - qn))
+            endfunction
+        else
+           err_prevs = nprevs
     end
     if ~exists("verbose_func", "local") then
         function verbose_func(i, x, err)
@@ -101,17 +101,20 @@ function [x0]=simple_iter(f, s, eps, x0, max_iter, verbose, check_convergence_co
 
     x_prevs = list()
     // Заполняем массив с предыдущими значениями X значением поумолчанию
-    for i=1:nprevs
+    x_prevs(1) = x0
+    for i=2:max(nprevs, 3)
         x_prevs(i) = %nan
     end
-    
+
     for i=1:1:max_iter
-        for j=2:nprevs
+        x0 = s(x_prevs(1:nprevs))
+        
+        for j=length(x_prevs):-1:2
             x_prevs(j) = x_prevs(j - 1)
         end
-        x_prevs(1) = x0
-        x0 = s(x_prevs)
-        err = error_func(list(x0, x_prevs(:)))
+        x_prevs(1) = x0 
+    
+        err = error_func(x_prevs(1:err_prevs))
         if verbose 
             then verbose_func(i, x0, err)
         end
@@ -180,15 +183,8 @@ function [res]=newtoon_method(f, df, eps, x0, max_iter, verbose, check_convergen
         end
     end
 
-    function [_res]=s(x)
-        xk = x(1)
+    function [_res]=s(xk)
         _res = xk - (f(xk) / df(xk))(:, 1)
-    endfunction
-    
-    function [_res]=_error_func(x_prevs)
-        [x2, x1, x0] = x_prevs(1:3)
-        qn = (x2 - x1) / (x1 - x0)
-        _res = abs((x2 - x1) / (1 - qn))
     endfunction
     
     function _verbose_func(i, x, err)
@@ -196,7 +192,7 @@ function [res]=newtoon_method(f, df, eps, x0, max_iter, verbose, check_convergen
         pretty_print(list(list("x", x), list("f(x)", f(x)), list("f''(x)", df(x)), list("error", err)))
     endfunction
     
-    res = simple_iter(f, s, eps, x0, max_iter, verbose, error_func=_error_func, verbose_func=_verbose_func, nprevs=2, check_convergence_cond=%F)
+    res = simple_iter(f, s, eps, x0, max_iter, verbose, verbose_func=_verbose_func, check_convergence_cond=%F)
 endfunction
 
 function [res]=secant_method(f, eps, x0, x1, max_iter, verbose)
@@ -206,8 +202,7 @@ function [res]=secant_method(f, eps, x0, x1, max_iter, verbose)
     if ~exists("max_iter", "local") then max_iter = 1000 end
     if ~exists("verbose", "local") then verbose = %F end
     
-    function [_res]=s(x)
-        [_x1, _x0] = x(1:2)
+    function [_res]=s(_x1, _x0)
         if isnan(_x0) then
             _x0 = x0
             _x1 = x1
@@ -222,7 +217,8 @@ endfunction
 subplot(121)
 acc = 0.01
 x = [-5:acc:5]'
-plot2d(x, f(x))
+plot(x, f(x))
+legend("exp(-0.5*x) - 0.2 * x^2 + 1")
 
 // Разобьем исходную функцию на две, их тоже нарисуем.
 function [res]=f1(x)
@@ -234,8 +230,8 @@ function [res]=f2(x)
 endfunction
 
 subplot(122)
-plot2d(x, [f1(x) f2(x)], [1, 2])
-
+plot(x, [f1(x) f2(x)], [1, 2])
+legend("exp(-0.5 * x)", "0.2 * x^2 - 1")
 // Из графиков видно, что как минимум один корень располагается на отрезке [2, 3]
 // Из производной исследуемой функции также видно, что её знак всегда отрицателен
 //     f(x)' = -0.5*e^(-0.5x) - 0.4x < 0  (при x > 0: очевидно, при x < 0: значение экспоненты
@@ -244,20 +240,25 @@ plot2d(x, [f1(x) f2(x)], [1, 2])
 // находится на отрезке [2, 3]
 
 printf("\n\n------------ Метод простых итераций ------------\n")
-x = simple_iter(f, eps=0.001, x0=2, verbose=%T, check_convergence_cond=%T)
-printf("\nРешение, полученное методом простых итераций:\n\tx = %.8f | f(x) = %.8f", x, f(x))
+p = - 2 / (df(2) + df(3))
+function [res]=s(x), res=x + p * f(x) endfunction
+x = simple_iter(f, s=s, eps=1.e-6, x0=2, verbose=%T, check_convergence_cond=%T)
+printf("\nРешение, полученное методом простых итераций:\n\tx = %e | f(x) = %e", x, f(x))
 
 printf("\n\n------------ Метод Ньютона ------------\n")
 x = newtoon_method(f, x0=2, eps=1.e-6, verbose=%T, check_convergence_cond=%T, root_locale=[2, 4])
-printf("\nРешение, полученное методом Ньютона:\n\tx = %.8f | f(x) = %.8f", x, f(x))
+printf("\nРешение, полученное методом Ньютона:\n\tx = %e | f(x) = %e", x, f(x))
 
 printf("\n\n------------ Метод секущих ------------\n")
 x = secant_method(f, eps=1.e-6, x0=2, x1=3, verbose=%T)
-printf("\nРешение, полученное методом секущих:\n\tx = %.8f | f(x) = %.8f", x, f(x))
+printf("\nРешение, полученное методом секущих:\n\tx = %e | f(x) = %e", x, f(x))
 
 printf("\n\n------------ fsolve ------------\n")
-x = fsolve([1], f)
-printf("\nРешение, полученное методом fsolve:\n\tx = %.8f | f(x) = %.8f", x, f(x))
+[x, _, info] = fsolve([2], f, tol=1.e-6)
+if info ~= 1 then
+    printf("Метод не нашел решения и завершил свою работу с кодом: %i", info)
+end
+printf("\nРешение, полученное методом fsolve:\n\tx = %.16e | f(x) = %.16e", x, f(x))
 
 
 
