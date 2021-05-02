@@ -1,5 +1,5 @@
-x = [0.079, 0.637, 1.345, 2.095, 2.782]'
-y = [-4.308, -0.739, 1.697, 4.208, 6.203]'
+x = [0.219, 0.811, 1.341, 2.111, 2.874]'
+y = [-2.151, -0.452, 1.214, 2.891, 4.617]'
 
 x_unknown = [x(1) + x(2), (x(1) + x(2)) / 2, (x(4) + x(5)) / 2, (x(1) + x(5)) / 3]'
 x_approx = linspace(0, 3, n=100)'
@@ -66,7 +66,7 @@ function [res]=recursive_diff(x, y, as_table, shape)
 
         l_value = res(l_idx(:))
         r_value = res(r_idx(:))
-        res_value = (r_value - l_value) / (x($) - x(1))
+        res_value = (l_value - r_value) / (x($) - x(1))
         
         res(as_table(:)) = res_value
     else
@@ -79,12 +79,13 @@ endfunction
 
 function [res]=newtoon_poly(x, x_src, y_src)
     res = 0
+    diff_table = recursive_diff(x_src, y_src, as_table=%T)
     for i=1:length(x_src)
         node_accum = 1
         for j=1:i - 1
             node_accum = node_accum .* (x - ones(x) * x_src(j))
         end
-        res = res + node_accum .* recursive_diff(x_src(1:i), y_src(1:i))
+        res = res + node_accum .* diff_table(i, i)
     end
 endfunction
 
@@ -101,7 +102,7 @@ function [res]=err(x, X, Y)
     for i=1:length(X) - 1
         accum = accum * (x - X(i))
     end
-    res = recursive_diff(X, Y) * accum
+    res = abs(recursive_diff(X, Y) * accum)
 endfunction
 
 lagr_interpl = lagrange_poly(x_approx, x, y)
@@ -119,6 +120,11 @@ disp("Оценка погрешности интерполяционного п�
 linear_interpl = interpln([x'; y'], x_approx)
 spline_interpl = interp(x_approx, x, y, splin(x, y))
 
+scf(5)
+scatter(x, y)
+plot(x_approx, [linear_interpl], "k")
+legend("известные значения функции", "линейная интерполяция", pos=4)
+scf(0)
 // Первый график: Лагран + Ньютон
 scatter(x, y)
 plot(x_approx, [lagr_interpl], 'LineWidth', 4)

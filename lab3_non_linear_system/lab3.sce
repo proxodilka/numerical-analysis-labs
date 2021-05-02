@@ -1,10 +1,10 @@
 
 function [res]=f1(x)
-    res = sin(x(1, :) + x(2, :)) - 1.2*x(1, :) - 0.1
+    res = sin(x(1, :) + x(2, :)) - x(2, :) - 1.5
 endfunction
 
 function [res]=f2(x)
-    res = x(1, :)^2 + x(2, :)^2 - 1
+    res = x(1, :) + cos(x(2, :) - 0.5) - 0.5
 endfunction
 
 function [res]=f(x)
@@ -14,8 +14,8 @@ endfunction
 function [res]=jacob_exact(x)
     // "Аналитический" Якобиан функции
     res = [
-        cos(x(1, :) + x(2, :)) - 1.2,    cos(x(1, :))*cos(x(2, :)) - sin(x(1, :))*sin(x(2, :));
-        2 * x(1, :)                 ,    2 * x(2, :)
+        cos(x(1, :) + x(2, :)),    cos(x(1, :) + x(2, :)) - 1;
+        1                     ,    sin(0.5 - x(2, :))
     ]
 endfunction
 
@@ -55,16 +55,41 @@ function [res1, res2, res3]=verbose_solver(x0, eps)
     disp(["x:", "f(x):"; string(res3), string(f(res3))])
 endfunction
 
-// 
-x = [-1:0.01:1]'
-plot2d(x, [asin(1.2*x + 0.1) - x, sqrt(1 - x^2), -sqrt(1 - x^2)], [1, 2, 2])
-legend("sin(x + y) - 1.2x - 0.1 = 0", "x^2 + y^2 - 1 = 0")
+function [res]=f1_p1(y, n)
+    n = ones(y) * n
+    res = 2*%pi*n - y + asin(y + 1.5)
+endfunction
 
-// Визуально можно определить два корня:
-x01 = [-0.89, -0.45]'
-x02 = [0.74, 0.67]'
+function [res]=f1_p2(y, n)
+    n = ones(y) * n
+    res = 2*%pi*n - y - asin(y + 1.5) + %pi
+endfunction
 
-printf("------------ Поиск первого решения системы ------------")
+function plot_pereodical(f, x, n, pcolor, swap_axes)
+    if ~exists("pcolor", "local") then pcolor = "b" end
+    if ~exists("swap_axes", "local") then swap_axes = %F end
+    for i=1:length(n)
+        y = f(x, n(i))
+        if swap_axes then
+            plot(y, x, pcolor)
+        else
+           plot(x, y, pcolor)
+        end
+    end
+endfunction
+
+
+x1 = [-2.5:0.01:-0.5]'
+x2 = [-4:0.01:4]'
+
+plot(0.5 - cos(x2 - 0.5), x2, "k")
+plot_pereodical(f1_p1, x1, -2:2, swap_axes=%T)
+plot_pereodical(f1_p2, x1, -2:2, swap_axes=%T)
+legend("x + cos(y - 0.5) - 0.5 = 0", "sin(x + y) - y - 1.5 = 0")
+
+// Визуально можно определили начальное приближения для корня:
+x01 = [1.4, -2.2]'
+
+printf("------------ Поиск решения системы ------------")
 [x11, x12, x13] = verbose_solver(x01, eps=10e-6)
-printf("------------ Поиск второго решения системы ------------")
-[x21, x22, x23] = verbose_solver(x02, eps=10e-6)
+norm(x11 - x12)

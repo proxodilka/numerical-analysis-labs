@@ -7,17 +7,18 @@ function pretty_print(kwargs)
         if value >= 0 then sep = " " end
         to_print = to_print + string(key) + "=" + sep + string(value) + " | "
     end
+    
     printf(to_print + "\n")
 endfunction
 
 function [res]=f(x)
     // Исследуемая функция
-    res = exp(-0.5*x) - 0.2 * x^2 + 1
+    res = 1 - 0.5 .* x .* log(x) + 0.3 * sqrt(x)
 endfunction
 
 function [res]=df(x)
     // Производная исследуемой функции
-    res = -0.5 * exp(-0.5*x) - 0.4 * x
+    res = 0.15 / sqrt(x) - 0.5 * log(x) - 0.5
 endfunction
 
 function [x0]=simple_iter(f, s, eps, x0, max_iter, verbose, check_convergence_cond, nprevs, verbose_func)
@@ -216,45 +217,44 @@ endfunction
 // Изобразим функцию на графике
 subplot(121)
 acc = 0.01
-x = [-5:acc:5]'
+x = [0:acc:5]'
 plot(x, f(x))
-legend("exp(-0.5*x) - 0.2 * x^2 + 1")
+legend("1 - 0.5 * x * log(x) + 0.3 * sqrt(x)")
 
 // Разобьем исходную функцию на две, их тоже нарисуем.
 function [res]=f1(x)
-    res = exp(-0.5 * x)
+    res = 1 - 0.5 .* x .* log(x)
 endfunction
 
 function [res]=f2(x)
-    res = 0.2 * x ^ 2 - 1
+    res = -0.3 * sqrt(x)
 endfunction
 
 subplot(122)
 plot(x, [f1(x) f2(x)], [1, 2])
-legend("exp(-0.5 * x)", "0.2 * x^2 - 1")
-// Из графиков видно, что как минимум один корень располагается на отрезке [2, 3]
+legend("1 - 0.5 * x * log(x)", "-0.3 * sqrt(x)")
+// Из графиков видно, что как минимум один корень располагается на отрезке [2.5, 3.5]
 // Из производной исследуемой функции также видно, что её знак всегда отрицателен
-//     f(x)' = -0.5*e^(-0.5x) - 0.4x < 0  (при x > 0: очевидно, при x < 0: значение экспоненты
-//                                         по модулю, всегда будет больше значения линейной функции)
+//     f(x)' = 0.15/sqrt(x) - 0.5log(x) - 0.5 < 0.15 - 0.5log(x) < 0
 // => можно заключить что на всей числовой прямой у функции будет всего один корень, да и тот
-// находится на отрезке [2, 3]
+// находится на отрезке [2.5, 3.5]
 
 printf("\n\n------------ Метод простых итераций ------------\n")
-p = - 2 / (df(2) + df(3))
+p = 2 / (abs(df(2.5)) + abs(df(3.5)))
 function [res]=s(x), res=x + p * f(x) endfunction
-x = simple_iter(f, s=s, eps=1.e-6, x0=2, verbose=%T, check_convergence_cond=%T)
+x = simple_iter(f, s=s, eps=1.e-6, x0=2.5, verbose=%T, check_convergence_cond=%T)
 printf("\nРешение, полученное методом простых итераций:\n\tx = %e | f(x) = %e", x, f(x))
 
 printf("\n\n------------ Метод Ньютона ------------\n")
-x = newtoon_method(f, x0=2, eps=1.e-6, verbose=%T, check_convergence_cond=%T, root_locale=[2, 4])
+x = newtoon_method(f, x0=2.5, eps=1.e-6, verbose=%T, check_convergence_cond=%T, root_locale=[2.5, 3.5])
 printf("\nРешение, полученное методом Ньютона:\n\tx = %e | f(x) = %e", x, f(x))
 
 printf("\n\n------------ Метод секущих ------------\n")
-x = secant_method(f, eps=1.e-6, x0=2, x1=3, verbose=%T)
+x = secant_method(f, eps=1.e-6, x0=2.5, x1=3.5, verbose=%T)
 printf("\nРешение, полученное методом секущих:\n\tx = %e | f(x) = %e", x, f(x))
 
 printf("\n\n------------ fsolve ------------\n")
-[x, _, info] = fsolve([2], f, tol=1.e-6)
+[x, _, info] = fsolve([2.5], f, tol=1.e-6)
 if info ~= 1 then
     printf("Метод не нашел решения и завершил свою работу с кодом: %i", info)
 end
